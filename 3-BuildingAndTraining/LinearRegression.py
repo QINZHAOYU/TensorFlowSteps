@@ -2,8 +2,12 @@ from matplotlib import pyplot as plt
 import tensorflow as tf
 import numpy as np
 
+import platform 
+plat = platform.system()
+
 import matplotlib
-matplotlib.use("TKAgg")
+if plat == "Windows":
+    matplotlib.use("TKAgg")
 
 
 def plot(**series):
@@ -13,7 +17,10 @@ def plot(**series):
         x = range(len(data))
         plt.plot(x, data, ls="-", lw=2, label=str(key))
     plt.legend()
-    plt.show()
+    if plat == "Windows":
+        plt.show()
+    elif plat == "Linux":
+        plt.savefig("result.png")
 
 
 X = tf.constant([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -76,4 +83,5 @@ def predict(X: tf.constant, vars: np.array, const: np.array):
 if __name__ == "__main__":
     vars, const = ModelWrapper()  # 线性回归模型参数包括系数（w_i）和常量(b)
     y_pred = predict(X, vars.numpy(), const.numpy())
+    print(y.numpy(), y_pred)
     plot(y_raw=y.numpy(), y_tf=y_pred)
