@@ -85,3 +85,7 @@ print(model.variables)
 ## 多层感知机
 
 [多层感知机示例](./MultilayerPerceptron.md)
+
+## 卷积神经网络（CNN）
+
+[卷积神经网络示例](./ConvolutionalNeuralNetwork.md)
