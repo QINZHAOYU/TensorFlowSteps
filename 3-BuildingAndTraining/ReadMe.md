@@ -82,10 +82,14 @@ print(model.variables)
 该层包含权重矩阵 `kernel = [input_dim, units]` 和偏置向量 `bias = [units]`  两个可训练变量，对应于 $f(AW + b)$ 中的 $W$ 和 $b$。
 
 
-## 多层感知机
+## 多层感知机（MLP）
 
 [多层感知机示例](./MultilayerPerceptron.md)
 
 ## 卷积神经网络（CNN）
 
 [卷积神经网络示例](./ConvolutionalNeuralNetwork.md)
+
+## 循环神经网络（RNN）
+
+[循环神经网络示例](./RecurrentNeuralNetwork.md)
