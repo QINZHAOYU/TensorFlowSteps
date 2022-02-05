@@ -93,3 +93,7 @@ print(model.variables)
 ## 循环神经网络（RNN）
 
 [循环神经网络示例](./RecurrentNeuralNetwork.md)
+
+## 深度强化学习（DRL）
+
+[深度强化学习示例](./DeepReinforcementLearning.md)
