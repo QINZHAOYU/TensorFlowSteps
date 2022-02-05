@@ -97,3 +97,16 @@ print(model.variables)
 ## 深度强化学习（DRL）
 
 [深度强化学习示例](./DeepReinforcementLearning.md)
+
+## Keras Pipeline
+
+以上示例均使用了 Keras 的 Subclassing API 建立模型，即对 `tf.keras.Model` 类进行扩展以定义自己的新模型，同时手工编写了训练和评估模型的流程。这种方式灵活度高，且与其他流行的深度学习框架（如 PyTorch、Chainer）共通，是本手册所推荐的方法。  
+不过在很多时候，我们只需要建立一个结构相对简单和典型的神经网络（比如 MLP 和 CNN），并使用常规的手段进行训练。这时，Keras 也给我们提供了另一套更为简单高效的内置方法来建立、训练和评估模型。
+
+[KerasPipeline](./KerasPipeline.md)
+
+## 自定义层、损失函数和评估指标 
+
+如果现有的这些层无法满足我的要求，我需要定义自己的层怎么办？事实上，我们不仅可以继承 `tf.keras.Model` 编写自己的模型类，也可以继承 t`f.keras.layers.Layer` 编写自己的层。
+
+[自定义网络实现](./CustomNetwork.md)
