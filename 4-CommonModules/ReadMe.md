@@ -1,5 +1,14 @@
 # TensorFlow 常用模块
 
++ [tf.train.Checkpoint：变量的保存与恢复](#`tf.train.Checkpoint`变量的保存与恢复)
++ [TensorBoard：训练过程可视化](#TensorBoard训练过程可视化)
+    + [实时查看参数变化情况](#实时查看参数变化情况)
+    + [查看Graph和Profile信息](#查看Graph和Profile信息)
+
+
+
+
+
 ## `tf.train.Checkpoint` ：变量的保存与恢复 
 
 Checkpoint 只保存模型的参数，不保存模型的计算过程，因此一般用于在具有模型源代码的时候恢复之前训练好的模型参数。
@@ -76,3 +85,70 @@ manager = tf.train.CheckpointManager(checkpoint, directory='./save', checkpoint_
 ```
 
 此处， `directory` 参数为文件保存的路径， `checkpoint_name` 为文件名前缀（不提供则默认为 `ckpt` ）， `max_to_keep` 为保留的 Checkpoint 数目。
+
+
+## TensorBoard：训练过程可视化 
+
+TensorBoard 就是一个能够帮助我们将训练过程可视化的工具。
+
+### 实时查看参数变化情况 
+
+首先在代码目录下建立一个文件夹（如 `./tensorboard` ）存放 TensorBoard 的记录文件，并在代码中实例化一个记录器：
+
+```python
+summary_writer = tf.summary.create_file_writer('./tensorboard')     # 参数为记录文件所保存的目录
+```
+
+接下来，当需要记录训练过程中的参数时，通过 `with` 语句指定希望使用的记录器，并对需要记录的参数（一般是 scalar）运行 `tf.summary.scalar(name, tensor, step=batch_index)` ，即可将训练过程中参数在 `step` 时候的值记录下来。这里的 `step` 参数可根据自己的需要自行制定，一般可设置为当前训练过程中的 `batch` 序号。整体框架如下：
+
+```python
+summary_writer = tf.summary.create_file_writer('./tensorboard')
+# 开始模型训练
+for batch_index in range(num_batches):
+    # ...（训练代码，当前batch的损失值放入变量loss中）
+    with summary_writer.as_default():                               # 希望使用的记录器
+        tf.summary.scalar("loss", loss, step=batch_index)
+        tf.summary.scalar("MyScalar", my_scalar, step=batch_index)  # 还可以添加其他自定义的变量
+```
+
+每运行一次 `tf.summary.scalar()` ，记录器就会向记录文件中写入一条记录。除了最简单的标量（scalar）以外，TensorBoard 还可以对其他类型的数据（如图像，音频等）进行可视化，详见 TensorBoard 文档 。
+
+当我们要对训练过程可视化时，在代码目录打开终端（如需要的话进入 TensorFlow 的 conda 环境），运行:
+
+```python
+tensorboard --logdir=./tensorboard
+```
+
+然后使用浏览器访问命令行程序所输出的网址（一般是 http://name-of-your-computer:6006），即可访问 TensorBoard 的可视界面。
+
+<img src="./imgs/tensorboard.png">
+
+默认情况下，TensorBoard 每 30 秒更新一次数据。不过也可以点击右上角的刷新按钮手动刷新。
+
+TensorBoard 的使用有以下注意事项：
+
++ 如果需要重新训练，需要删除掉记录文件夹内的信息并重启 TensorBoard（或者建立一个新的记录文件夹并开启 TensorBoard， `--logdir` 参数设置为新建立的文件夹）；
++ 记录文件夹目录保持全英文。
+
+### 查看 Graph 和 Profile 信息
+
+我们可以在训练时使用 `tf.summary.trace_on` 开启 `Trace`，此时 TensorFlow 会将训练时的大量信息（如计算图的结构，每个操作所耗费的时间等）记录下来。在训练完成后，使用 `tf.summary.trace_export` 将记录结果输出到文件。
+
+```python
+tf.summary.trace_on(graph=True, profiler=True)  # 开启Trace，可以记录图结构和profile信息
+# 进行训练
+with summary_writer.as_default():
+    tf.summary.trace_export(name="model_trace", step=0, profiler_outdir=log_dir)    # 保存Trace信息到文件
+```
+
+之后，我们就可以在 TensorBoard 中选择 “Profile”，以时间轴的方式查看各操作的耗时情况。如果使用了 `tf.function` 建立了计算图，也可以点击 “Graphs” 查看图结构。
+
+
+
+
+
+
+
+
+
+
