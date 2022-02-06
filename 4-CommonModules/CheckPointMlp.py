@@ -72,6 +72,9 @@ def train():
 
     # 实例化Checkpoint，设置保存对象为model
     checkpoint = tf.train.Checkpoint(myAwesomeModel=model)
+    # 使用tf.train.CheckpointManager管理Checkpoint
+    manager = tf.train.CheckpointManager(
+        checkpoint, directory='./4-CommonModules/save', max_to_keep=10)
 
     for batch_index in range(1, num_batches+1):
         X, y = data_loader.get_batch(args.batch_size)
@@ -85,8 +88,10 @@ def train():
         optimizer.apply_gradients(grads_and_vars=zip(grads, model.variables))
 
         if batch_index % 100 == 0:                              # 每隔100个Batch保存一次
-            path = checkpoint.save(
-                './4-CommonModules/save/model.ckpt')         # 保存模型参数到文件
+            # path = checkpoint.save(
+            #     './4-CommonModules/save/model.ckpt')  # 保存模型参数到文件
+            # 使用CheckpointManager保存模型参数到文件并自定义编号
+            path = manager.save(checkpoint_number=batch_index)
             print("model saved to %s" % path)
 
 
