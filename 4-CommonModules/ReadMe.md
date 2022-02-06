@@ -12,6 +12,12 @@
 + [TFRecord ：数据集存储格式](#TFRecord：数据集存储格式)
     + [将数据集存储为 TFRecord 文件](#将数据集存储为TFRecord文件)
     + [读取 TFRecord 文件](#读取TFRecord文件)
++ [tf.config：GPU 的使用与分配](#tf.config：GPU的使用与分配 )
+    + [指定当前程序使用的 GPU](#指定当前程序使用的GPU)
+    + [设置显存使用策略](#设置显存使用策略)
+    + [单 GPU 模拟多 GPU 环境](#单GPU模拟多GPU环境)
+
+
 
 
 ## `tf.train.Checkpoint` ：变量的保存与恢复 
@@ -440,4 +446,97 @@ for image, label in dataset:
     plt.title('cat' if label == 0 else 'dog')
     plt.imshow(image.numpy())
     plt.show()
+```
+
+
+## `tf.config`：GPU 的使用与分配 
+
+默认情况下 TensorFlow 会使用其所能够使用的所有 GPU，有时就需要合理分配显卡资源。
+
+### 指定当前程序使用的 GPU 
+
+通过 `tf.config.list_physical_devices` ，我们可以获得当前主机上某种特定运算设备类型（如 GPU 或 CPU ）的列表，例如，在一台具有 4 块 GPU 和一个 CPU 的工作站上运行以下代码：
+
+```python
+gpus = tf.config.list_physical_devices(device_type='GPU')
+cpus = tf.config.list_physical_devices(device_type='CPU')
+print(gpus, cpus)
+
+'''output:
+[PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'),
+ PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU'),
+ PhysicalDevice(name='/physical_device:GPU:2', device_type='GPU'),
+ PhysicalDevice(name='/physical_device:GPU:3', device_type='GPU')]
+[PhysicalDevice(name='/physical_device:CPU:0', device_type='CPU')]
+'''
+```
+
+然后，通过 `tf.config.set_visible_devices` ，可以设置当前程序可见的设备范围（当前程序只会使用自己可见的设备，不可见的设备不会被当前程序使用）。例如，如果在上述 4 卡的机器中我们需要限定当前程序只使用下标为 0、1 的两块显卡（GPU:0 和 GPU:1），可以使用以下代码：
+
+```python
+gpus = tf.config.list_physical_devices(device_type='GPU')
+tf.config.set_visible_devices(devices=gpus[0:2], device_type='GPU')
+```
+
+如果完全不想使用 GPU ，向 `devices` 参数传入空列表即可，即
+
+```python
+tf.config.set_visible_devices(devices=[], device_type='GPU')
+```
+
+使用环境变量 `CUDA_VISIBLE_DEVICES` 也可以控制程序所使用的 GPU。假设发现四卡的机器上显卡 0,1 使用中，显卡 2,3 空闲，Linux 终端输入:
+
+    export CUDA_VISIBLE_DEVICES=2,3
+
+或在代码中加入
+
+```python
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = "2,3"
+```
+
+即可指定程序只在显卡 2,3 上运行。
+
+
+### 设置显存使用策略
+
+默认情况下，TensorFlow 将使用几乎所有可用的显存，以避免内存碎片化所带来的性能损失。不过，TensorFlow 提供两种显存使用策略，让我们能够更灵活地控制程序的显存使用方式：
+
++ 仅在需要时申请显存空间（程序初始运行时消耗很少显存，随着程序的运行而动态申请显存）；
++ 限制消耗固定大小的显存（程序不会超出限定的显存大小，若超出的报错）。
+
+可以通过 `tf.config.experimental.set_memory_growth` 将 GPU 的显存使用策略设置为 “仅在需要时申请显存空间”。以下代码将所有 GPU 设置为仅在需要时申请显存空间：
+
+```python
+gpus = tf.config.list_physical_devices(device_type='GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(device=gpu, enable=True)
+```
+
+以下通过 `tf.config.set_logical_device_configuration` 选项并传入 `tf.config.LogicalDeviceConfiguration` 实例，设置 TensorFlow 固定消耗 `GPU:0` 的 1GB 显存（其实可以理解为建立了一个显存大小为 1GB 的 “虚拟 GPU”）：
+
+```python
+gpus = tf.config.list_physical_devices(device_type='GPU')
+tf.config.set_logical_device_configuration(
+    gpus[0],
+    [tf.config.LogicalDeviceConfiguration(memory_limit=1024)])
+```
+
+### 单 GPU 模拟多 GPU 环境
+
+当我们的本地开发环境只有一个 GPU，但却需要编写多 GPU 的程序在工作站上进行训练任务时，TensorFlow 为我们提供了一个方便的功能，可以让我们在本地开发环境中建立多个模拟 GPU，从而让多 GPU 的程序调试变得更加方便。  
+例如在实体 GPU `GPU:0` 的基础上建立了两个显存均为 2GB 的虚拟 GPU。
+
+```python
+gpus = tf.config.list_physical_devices('GPU')
+tf.config.set_logical_device_configuration(
+    gpus[0],
+    [tf.config.LogicalDeviceConfiguration(memory_limit=2048),
+     tf.config.LogicalDeviceConfiguration(memory_limit=2048)])
+```
+
+我们在 单机多卡训练 的代码前加入以上代码，即可让原本为多 GPU 设计的代码在单 GPU 环境下运行。当输出设备数量时，程序会输出：
+
+```python
+Number of devices: 2
 ```
