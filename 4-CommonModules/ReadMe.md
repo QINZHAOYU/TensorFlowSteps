@@ -9,7 +9,9 @@
     + [数据集对象的预处理](#数据集对象的预处理)
     + [使用 tf.data 的并行化策略提高训练流程效率](#使用tf.data的并行化策略提高训练流程效率)
     + [利用多核心的优势对数据进行并行化变换](#利用多核心的优势对数据进行并行化变换)
-
++ [TFRecord ：数据集存储格式](#TFRecord：数据集存储格式)
+    + [将数据集存储为 TFRecord 文件](#将数据集存储为TFRecord文件)
+    + [读取 TFRecord 文件](#读取TFRecord文件)
 
 
 ## `tf.train.Checkpoint` ：变量的保存与恢复 
@@ -150,6 +152,8 @@ with summary_writer.as_default():
 ## ` tf.data` ：数据集的构建与预处理
 
 TensorFlow 提供了 `tf.data` 这一模块，包括了一套灵活的数据集构建 API，能够帮助我们快速、高效地构建数据输入的流水线，尤其适用于数据量巨大的场景。
+
+[tf.data用例](./TfDataUsages.py)
 
 
 ### 数据集对象的建立
@@ -325,5 +329,115 @@ model.fit(mnist_dataset, epochs=num_epochs)
 由于已经通过 `Dataset.batch()` 方法划分了数据集的批次，所以这里也无需提供批次的大小。
 
 
+## TFRecord：数据集存储格式
+
+TFRecord 是 TensorFlow 中的数据集存储格式。当我们将数据集整理成 TFRecord 格式后，TensorFlow 就可以高效地读取和处理这些数据集，从而帮助我们更高效地进行大规模的模型训练。
+
+TFRecord 可以理解为一系列序列化的 `tf.train.Example` 元素所组成的列表文件，而每一个 `tf.train.Example` 又由若干个 `tf.train.Feature` 的字典组成。形式如下：
+
+```python
+# dataset.tfrecords
+[
+    {   # example 1 (tf.train.Example)
+        'feature_1': tf.train.Feature,
+        ...
+        'feature_k': tf.train.Feature
+    },
+    ...
+    {   # example N (tf.train.Example)
+        'feature_1': tf.train.Feature,
+        ...
+        'feature_k': tf.train.Feature
+    }
+]
+```
+
+为了将形式各样的数据集整理为 TFRecord 格式，我们可以对数据集中的每个元素进行以下步骤：
+
++ 读取该数据元素到内存；
++ 将该元素转换为 `tf.train.Example` 对象（每一个 `tf.train.Example` 由若干个 `tf.train.Feature` 的字典组成，因此需要先建立 Feature 的字典）；
++ 将该 `tf.train.Example` 对象序列化为字符串，并通过一个预先定义的 `tf.io.TFRecordWriter` 写入 TFRecord 文件。
+
+而读取 TFRecord 数据则可按照以下步骤：
+
++ 通过 `tf.data.TFRecordDataset` 读入原始的 TFRecord 文件（此时文件中的 `tf.train.Example` 对象尚未被反序列化），获得一个 `tf.data.Dataset` 数据集对象；
++ 通过 `Dataset.map` 方法，对该数据集对象中的每一个序列化的 `tf.train.Example` 字符串执行 `tf.io.parse_single_example` 函数，从而实现反序列化。
+
+以下我们通过一个实例，展示将 cats_vs_dogs 二分类数据集的训练集部分转换为 TFRecord 文件，并读取该文件的过程。
 
 
+### 将数据集存储为 TFRecord 文件
+
+首先，下载数据集 并解压到 `data_dir` ，初始化数据集的图片文件名列表及标签。
+
+```python
+import tensorflow as tf
+import os
+
+data_dir = './4-CommonModules/data'
+train_cats_dir = data_dir + '/train/cats/'
+train_dogs_dir = data_dir + '/train/dogs/'
+tfrecord_file = data_dir + '/train/train.tfrecords'
+
+train_cat_filenames = [train_cats_dir + filename for filename in os.listdir(train_cats_dir)]
+train_dog_filenames = [train_dogs_dir + filename for filename in os.listdir(train_dogs_dir)]
+train_filenames = train_cat_filenames + train_dog_filenames
+train_labels = [0] * len(train_cat_filenames) + [1] * len(train_dog_filenames)  # 将 cat 类的标签设为0，dog 类的标签设为1
+```
+
+然后，迭代读取每张图片，建立 `tf.train.Feature` 字典和 `tf.train.Example` 对象，序列化并写入 TFRecord 文件。
+
+```python
+with tf.io.TFRecordWriter(tfrecord_file) as writer:
+    for filename, label in zip(train_filenames, train_labels):
+        image = open(filename, 'rb').read()     # 读取数据集图片到内存，image 为一个 Byte 类型的字符串
+        feature = {                             # 建立 tf.train.Feature 字典
+            'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image])),  # 图片是一个 Bytes 对象
+            'label': tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))   # 标签是一个 Int 对象
+        }
+        example = tf.train.Example(features=tf.train.Features(feature=feature)) # 通过字典建立 Example
+        writer.write(example.SerializeToString())   # 将Example序列化并写入 TFRecord 文件
+```
+
+值得注意的是， `tf.train.Feature` 支持三种数据格式：
+
++ `tf.train.BytesList` ：字符串或原始 `Byte` 文件（如图片），通过 `bytes_list` 参数传入一个由字符串数组初始化的 `tf.train.BytesList` 对象；
++ `tf.train.FloatList` ：浮点数，通过 `float_list` 参数传入一个由浮点数数组初始化的 `tf.train.FloatList` 对象；
++ `tf.train.Int64List` ：整数，通过 `int64_list` 参数传入一个由整数数组初始化的 `tf.train.Int64List` 对象。
+
+如果只希望保存一个元素而非数组，传入一个只有一个元素的数组即可。
+
+运行以上代码，不出片刻，我们即可在 `tfrecord_file` 所指向的文件地址获得一个 500MB 左右的 `train.tfrecords` 文件。
+
+### 读取 TFRecord 文件
+
+读取之前建立的 `train.tfrecords` 文件，并通过 `Dataset.map` 方法，使用 `tf.io.parse_single_example` 函数对数据集中的每一个序列化的 `tf.train.Example` 对象解码。
+
+```python
+raw_dataset = tf.data.TFRecordDataset(tfrecord_file)    # 读取 TFRecord 文件
+
+feature_description = { # 定义Feature结构，告诉解码器每个Feature的类型是什么
+    'image': tf.io.FixedLenFeature([], tf.string),
+    'label': tf.io.FixedLenFeature([], tf.int64),
+}
+
+def _parse_example(example_string): # 将 TFRecord 文件中的每一个序列化的 tf.train.Example 解码
+    feature_dict = tf.io.parse_single_example(example_string, feature_description)
+    feature_dict['image'] = tf.io.decode_jpeg(feature_dict['image'])    # 解码JPEG图片
+    return feature_dict['image'], feature_dict['label']
+
+dataset = raw_dataset.map(_parse_example)
+```
+
+这里的 `feature_description` 类似于一个数据集的 “描述文件”，通过一个由键值对组成的字典，告知 `tf.io.parse_single_example` 函数每个 `tf.train.Example` 数据项有哪些 Feature，以及这些 Feature 的类型、形状等属性。 `tf.io.FixedLenFeature` 的三个输入参数 `shape` 、 `dtype` 和 `default_value` （可省略）为每个 Feature 的形状、类型和默认值。这里我们的数据项都是单个的数值或者字符串，所以 `shape` 为空数组。
+
+获得一个数据集对象 `dataset` ，这已经是一个可以用于训练的 `tf.data.Dataset` 对象了！我们从该数据集中读取元素并输出验证：
+
+```python
+import matplotlib.pyplot as plt 
+
+for image, label in dataset:
+    plt.title('cat' if label == 0 else 'dog')
+    plt.imshow(image.numpy())
+    plt.show()
+```
