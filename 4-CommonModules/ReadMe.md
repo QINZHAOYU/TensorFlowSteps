@@ -596,12 +596,39 @@ print(end_time - start_time)
 
 ### tf.function 内在机制
 
+当被 `@tf.function` 修饰的函数第一次被调用的时候，进行以下操作：
 
++ 在即时执行模式关闭的环境下，函数内的代码依次运行。也就是说，每个 tf. 方法都只是定义了计算节点，而并没有进行任何实质的计算。这与 TensorFlow 1.X 的图执行模式是一致的；
++ 使用 AutoGraph 将函数中的 Python 控制流语句转换成 TensorFlow 计算图中的对应节点（比如说 `while` 和 `for` 语句转换为 `tf.while` ， `if` 语句转换为 `tf.cond` 等等；
++ 基于上面的两步，建立函数内代码的计算图表示（为了保证图的计算顺序，图中还会自动加入一些 `tf.control_dependencies` 节点）；
++ 运行一次这个计算图；
++ 基于函数的名字和输入的函数参数的类型生成一个哈希值，并将建立的计算图缓存到一个哈希表中。
+
+在被 `@tf.function` 修饰的函数之后再次被调用的时候，根据函数名和输入的函数参数的类型计算哈希值，检查哈希表中是否已经有了对应计算图的缓存。如果是，则直接使用已缓存的计算图，否则重新按上述步骤建立计算图。
 
 ### AutoGraph：将 Python 控制流转换为 TensorFlow 计算图
 
+`@tf.function` 使用名为 AutoGraph 的机制将函数中的 Python 控制流语句转换成 TensorFlow 计算图中的对应节点。以下示例使用 `tf.autograph` 模块的低层 API `tf.autograph.to_code` 将函数 `square_if_positive` 转换成 TensorFlow 计算图：
 
+```python
+import tensorflow as tf
+
+@tf.function
+def square_if_positive(x):
+    if x > 0:
+        x = x * x
+    else:
+        x = 0
+    return x
+
+a = tf.constant(1)
+b = tf.constant(-1)
+print(square_if_positive(a), square_if_positive(b))
+print(tf.autograph.to_code(square_if_positive.python_function))
+```
+
+原函数中的 Python 控制流 `if...else...` 被转换为了 `x = ag__.if_stmt(cond, if_true, if_false, get_state, set_state)` 这种计算图式的写法。AutoGraph 起到了类似编译器的作用，能够帮助我们通过更加自然的 Python 控制流轻松地构建带有条件 / 循环的计算图，而无需手动使用 TensorFlow 的 API 进行构建。
 
 ### 使用传统的 tf.Session
 
-
+如果你依然钟情于 TensorFlow 传统的图执行模式也没有问题。TensorFlow 2 提供了 `tf.compat.v1` 模块以支持 TensorFlow 1.X 版本的 API。同时，只要在编写模型的时候稍加注意，Keras 的模型是可以同时兼容即时执行模式和图执行模式的。注意，在图执行模式下， `model(input_tensor)` 只需运行一次以完成图的建立操作。
