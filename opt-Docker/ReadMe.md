@@ -52,6 +52,8 @@ docker image pull [image_name]  # 从仓库中拉取映像[image_name]到本机
 docker image ls                 # 列出所有本地映像
 docker image rm [image_name]    # 删除名为[image_name]的本地映像
 
+docker images | grep gpu        # 从所有本地镜像中筛选出名称含有 “gpu” 镜像
+
 
 # ------------------------------  制作镜像:
 项目根目录：/MyProject
@@ -96,6 +98,8 @@ docker container stop [containerID]         # 停止ID为[container_id]的容器
 docker container rm [container_id]          # 删除ID为[container_id]的容器
 docker container rm $(docker ps -a -q)      # 删除所有容器
 
+exit                                        # 直接退出容器（容器后台运行）
+
 
 # ------------------------------------------- 根据本地镜像制作容器：
 
@@ -108,6 +112,15 @@ docker container rm $(docker ps -a -q)      # 删除所有容器
 -it：           容器的 Shell 映射到当前的 Shell，然后你在本机窗口输入的命令，就会传入容器。
 koa-demo:0.0.1：image 文件的名字（如果有标签，还需要提供标签，默认是 latest 标签）。
 /bin/bash：     容器启动以后，内部第一个执行的命令。这里是启动 Bash，保证用户可以使用 Shell
+
+
+
+>>> docker run -it --name my-container -d local-image bash
+
+--------------  参数说明：
+-d              后台运行容器，并返回容器ID
+--name          为容器指定一个名称
+local-image     本地镜像
 '''
 
 
